@@ -39,6 +39,7 @@ using System.Management;
 using System.Security.Permissions;
 using Microsoft.Win32;
 using System.Net.NetworkInformation;
+using Microsoft.SqlServer.Server;
 
 namespace Bamboo {
 
@@ -90,7 +91,23 @@ public class Databases {
 }
 
 // Class to handle interactions with flatfiles
-public class FlatFiles { 
+public class Files { 
+
+    public void ReadExcelFile(string Filename, ref DataTable tmpTableData, string Sheetname, string Range, bool HeaderRow, out string ErrMessage, out string sResult) { 
+    try {
+    ErrMessage = null;
+    if (Range == "") { Range = "A1:A1"; }
+    string Conn = @"Provider=Microsoft.ACE.OLEDB.12.0; Data Source='" + Filename + @"';Extended Properties=""Excel 12.0;HDR=" + HeaderRow.ToString().ToUpper() + @";""";
+    string Query = @"SELECT * FROM [" + Sheetname + @"$" + Range + @"]";
+    OleDbDataAdapter adapter = new OleDbDataAdapter(Query, Conn);
+    DataSet ds = new DataSet();
+    adapter.TableMappings.Add("data", "datatable");
+    adapter.Fill(ds, "datatable");
+    DataTable dt = ds.Tables[0];
+    tmpTableData = dt;
+    sResult = dt.Rows.Count.ToString();
+    } catch (Exception ex) { ErrMessage = ex.Message.ToString(); sResult = null; }
+    }
 
 }
 
@@ -170,21 +187,25 @@ public class ActiveDirectoryMore {
     return tmpResult;
     }
 
-    public bool LDAP_ExistsServer(string tServer, string tDomain) {
+    public bool LDAP_ExistsServer(string tServer, string tDomainPath, out string ErrMessage, out string sResult) {
     try {
-    DirectoryEntry entry = new DirectoryEntry(@"LDAP://" + tDomain.ToLower().Trim());
+    ErrMessage = null;
+    DirectoryEntry entry = new DirectoryEntry(@"LDAP://" + tDomainPath.ToLower().Trim());
     DirectorySearcher mySearcher = new DirectorySearcher(entry);
     mySearcher.Filter = (@"(&(objectClass=computer)(operatingsystem=windows*server*)(Name=" + tServer.ToLower().Trim() + "))");
+    sResult = mySearcher.FindAll().Count.ToString();
     if (mySearcher.FindAll().Count == 1) { return true; } else { return false; }
-    } catch (Exception) { return false; }
+    } catch (Exception ex) { ErrMessage = ex.Message.ToString(); sResult = null; return false; }
     }
 
-    public ArrayList LDAP_GetUserDetails(string tUsername) {
+    public ArrayList LDAP_GetUserDetails(string tUsername, string tDomainPath, out string ErrMessage, out string sResult) {
     try {
+    ErrMessage = null;
     ArrayList tArray = new ArrayList();
-    DirectoryEntry deEntry = new DirectoryEntry("LDAP://DC=SERVICESOURCE,DC=com");
+    DirectoryEntry deEntry = new DirectoryEntry("LDAP://" + tDomainPath.ToLower().Trim());
     DirectorySearcher deSearch = new DirectorySearcher(deEntry);
     deSearch.Filter = "(&(objectClass=user)(anr=" + tUsername + ")(|(userAccountControl=512)(userAccountControl=66048)))";
+    sResult = deSearch.FindAll().Count.ToString();
     if ( deSearch.FindAll().Count > 0 ) {
     tArray.Add(GetProperties(deSearch.FindAll()[0].Properties["name"]));
     tArray.Add(GetProperties(deSearch.FindAll()[0].Properties["mail"]));
@@ -193,13 +214,15 @@ public class ActiveDirectoryMore {
     tArray.Add(GetProperties(deSearch.FindAll()[0].Properties["sAMAccountName"]));
     }
     return tArray;
-    } catch (Exception) { return null; }
+    } catch (Exception ex) { ErrMessage = ex.Message.ToString(); sResult = null; return null; }
     }
 
-    public ArrayList DNS_GetIpAddresses(string tHostnameOrURL, bool InterNetworkOnly) {
+    public ArrayList DNS_GetIpAddresses(string tHostnameOrURL, bool InterNetworkOnly, out string ErrMessage, out string sResult) {
     try {
+    ErrMessage = null;
     ArrayList tArray = new ArrayList();
     IPAddress[] Addresses = (IPAddress[])Dns.GetHostEntry(tHostnameOrURL).AddressList;
+    sResult = Addresses.Length.ToString();
     foreach (IPAddress Address in Addresses) {
     if (InterNetworkOnly == true) { 
     if (Address.AddressFamily == AddressFamily.InterNetwork) { tArray.Add(Address); }
@@ -208,7 +231,7 @@ public class ActiveDirectoryMore {
     }
     }
     return tArray;
-    } catch (Exception) { return null; }
+    } catch (Exception ex) { ErrMessage = ex.Message.ToString(); sResult = null; return null; }
     }
 
 }
